@@ -6,6 +6,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 7860;
 
+app.use(express.urlencoded({ extended: true }));
+
 // 1. Database ya SQLite ndani ya /tmp (Tumebadilisha jina kuwa binance_walls.db ili isigongane na faili lingine)
 const dbPath = path.join('/tmp', 'binance_walls.db');
 const db = new sqlite3.Database(dbPath, (err) => {
@@ -28,14 +30,19 @@ db.serialize(() => {
 });
 
 // 2. Kuunganisha Binance WebSocket
-const endpoint = "wss://fstream.binance.com/ws/dogeusdt@depth@100ms";
+let currentPair = "dogeusdt";
 let ws;
 
-function connectWebSocket() {
+function connectWebSocket(pair) {
+    if (ws) {
+        try { ws.removeAllListeners(); ws.close(); } catch (e) {}
+    }
+
+    const endpoint = `wss://fstream.binance.com/ws/${pair}@depth@100ms`;
     ws = new WebSocket(endpoint);
 
     ws.on('open', () => {
-        console.log("Muunganisho wa Binance WebSocket umefanikiwa!");
+        console.log(`Muunganisho wa Binance WebSocket umefanikiwa! Pair: ${pair}`);
     });
 
     ws.on('message', (data) => {
@@ -79,11 +86,11 @@ function connectWebSocket() {
     ws.on('error', (err) => console.error("WS Error:", err.message));
     ws.on('close', () => {
         console.log("WS Closed. Reconnecting...");
-        setTimeout(connectWebSocket, 3000);
+        setTimeout(() => connectWebSocket(currentPair), 3000);
     });
 }
 
-connectWebSocket();
+connectWebSocket(currentPair);
 
 function formatAmount(amount) {
     if (amount >= 1000000) return "$" + (amount / 1000000).toFixed(2).replace(/\.00$/, "").replace(/(\.[1-9])0$/, "$1") + "M";
@@ -94,7 +101,52 @@ function formatAmount(amount) {
 // Ujumbe wa ukurasa wa mwanzo ili kuondoa hitilafu ya Cannot GET /
 app.get('/', (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send('Server inafanya kazi vizuri! Nenda kwenye <a href="/json-data">/json-data</a> kuona taarifa za oda.');
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Binance Order Walls</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 500px; margin: 40px auto; padding: 0 16px; }
+                input { width: 100%; padding: 10px; font-size: 16px; box-sizing: border-box; margin-bottom: 10px; }
+                button { width: 100%; padding: 12px; font-size: 16px; cursor: pointer; background: #f0b90b; border: none; border-radius: 4px; font-weight: bold; }
+                .info { margin-top: 20px; font-size: 14px; color: #555; }
+                .pair { font-weight: bold; color: #000; }
+            </style>
+        </head>
+        <body>
+            <h2>Binance Order Walls</h2>
+            <p>Pair ya sasa: <span class="pair">${currentPair.toUpperCase()}</span></p>
+            <form method="POST" action="/set-pair">
+                <input type="text" name="pair" placeholder="Weka pair (mfano: btcusdt)" required>
+                <button type="submit">Badilisha Pair</button>
+            </form>
+            <div class="info">
+                <a href="/json-data">Angalia /json-data</a>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+app.post('/set-pair', (req, res) => {
+    let newPair = (req.body.pair || '').trim().toLowerCase();
+    newPair = newPair.replace(/[^a-z0-9]/g, '');
+
+    if (!newPair) {
+        return res.status(400).send('Pair si sahihi. Rudi nyuma na ujaribu tena.');
+    }
+
+    currentPair = newPair;
+
+    db.run(`DELETE FROM order_walls`, [], (err) => {
+        if (err) console.error("Hitilafu kufuta order_walls:", err.message);
+    });
+
+    connectWebSocket(currentPair);
+
+    res.redirect('/');
 });
 
 // 3. API Endpoint /json-data
