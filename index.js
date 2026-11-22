@@ -38,7 +38,7 @@ function connectWebSocket(pair) {
         try { ws.removeAllListeners(); ws.close(); } catch (e) {}
     }
 
-    const endpoint = wss://stream.binance.com:9443/ws/${pair}@depth@100ms;
+    const endpoint = `wss://stream.binance.com:9443/ws/${pair}@depth@100ms`;
     ws = new WebSocket(endpoint);
 
     ws.on('open', () => {
