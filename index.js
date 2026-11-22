@@ -38,7 +38,7 @@ function connectWebSocket(pair) {
         try { ws.removeAllListeners(); ws.close(); } catch (e) {}
     }
 
-    const endpoint = `wss://fstream.binance.com/ws/${pair}@depth@100ms`;
+    const endpoint = wss://stream.binance.com:9443/ws/${pair}@depth@100ms;
     ws = new WebSocket(endpoint);
 
     ws.on('open', () => {
@@ -60,7 +60,7 @@ function connectWebSocket(pair) {
                     let thamani = bei * kiasi;
                     let elementId = `${type}-${bei}`;
 
-                    if (thamani >= 100000) {
+                    if (thamani >= 1000000) {
                         db.run(`
                             INSERT INTO order_walls (id, type, price, amount, value, first_seen, last_seen)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
