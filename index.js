@@ -30,7 +30,7 @@ db.serialize(() => {
 });
 
 // 2. Kuunganisha Binance WebSocket
-let currentPair = "dogeusdt";
+let currentPair = "btcusdt";
 let ws;
 
 function connectWebSocket(pair) {
